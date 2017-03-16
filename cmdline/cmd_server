@@ -1,0 +1,91 @@
+#!/bin/env perl
+#TCP server example in Perl
+
+use strict;
+use IO::Socket::INET;
+use LWP::UserAgent;
+use DBI;
+use JSON;
+
+
+my $json = JSON->new;
+# auto-flush on socket
+$| = 1;
+my $owner = ();
+my %feedhealthy = ();
+
+my $dbh = DBI->connect("dbi:Pg:dbname=jwt", 'postgres', '');
+
+
+# creating a listening socket
+#my $socket = new IO::Socket::INET (
+my $socket = new IO::Socket::INET(
+		LocalHost => '0.0.0.0',
+		LocalPort => '7777',
+		Proto => 'tcp',
+		Listen => 5,
+		Reuse => 1,
+		);
+
+die "cannot create socket $!\n" unless $socket;
+print "server waiting for client connection on port 7777\n";
+
+sub make_auth_query {
+	my ($token) = @_;
+	print $token . "\n";
+	my $ua = LWP::UserAgent->new;
+	$ua->timeout(10);
+
+	my $response = $ua->get("http://localhost:5000/tokencheck/" 
+			. $token);
+
+
+	if ($response->is_success) {
+#print $response->decoded_content;  
+		my $jsonout = $response->decoded_content;  
+		$owner = $json->decode($jsonout)->{owner};
+		return 0;
+	}
+	else {
+		print $response->status_line;
+		return -1;
+	}
+
+}
+
+while(1)
+{
+# waiting for a new client connection
+	my $client_socket = $socket->accept();
+
+# get information about a newly connected client
+	my $client_address = $client_socket->peerhost();
+	my $client_port = $client_socket->peerport();
+	print "connection from $client_address:$client_port\n";
+
+# read up to 1024 characters from the connected client
+	my $data = "";
+
+	my $authdata = ();
+	$client_socket->recv($authdata, 8192);
+
+# XXX First perform auth
+	my $auth = &make_auth_query($authdata);
+	if($auth eq -1) {
+		my $msg = "Sorry Auth failed / Token expired\n";
+		$client_socket->send($msg);
+#print $msg;
+		close($client_socket);
+		next;
+	}
+	my $msg = "Auth succeded\n";
+	$client_socket->send($msg);
+
+	$client_socket->recv($data, 8192);
+	# write response data to the connected client
+	$data = "Action done";
+	$client_socket->send($data);
+
+# notify client that response has been sent
+	shutdown($client_socket, 1);
+}

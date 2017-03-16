@@ -1,0 +1,42 @@
+#!/bin/env perl
+#TCP client example in Perl
+
+use strict;
+use IO::Socket::INET;
+use DateTime;
+use Tie::File;
+use Fcntl qw(O_RDONLY);
+
+require "./tool.conf";
+# auto-flush on socket
+$| = 1;
+
+# These come from config file
+our $authtok;
+
+# create a connecting socket
+# my $socket = new IO::Socket::INET (
+ my $socket = new IO::Socket::INET (
+		PeerHost => '127.0.0.1',
+		PeerPort => '7777',
+		Proto => 'tcp',
+		);
+die "cannot connect to the server $!\n" unless $socket;
+print "connected to the server\n";
+
+
+my @samplelines = ();
+
+
+
+sub perform_auth {
+	my $response = ();
+	$socket->send($authtok);
+
+	$socket->recv($response, 1024);
+	print $response;
+}
+
+&perform_auth;
+
+# XXX continue with sending other stuff
